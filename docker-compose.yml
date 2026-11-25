@@ -1,0 +1,9 @@
+# Alternative to `make server` if you'd rather not install the temporal CLI.
+# Runs the same single-binary dev server (in-memory unless you mount a db).
+services:
+  temporal:
+    image: temporalio/temporal:latest
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--ui-ip", "0.0.0.0"]
+    ports:
+      - "7233:7233"   # gRPC: workers and clients connect here
+      - "8233:8233"   # Web UI
