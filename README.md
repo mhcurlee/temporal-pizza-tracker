@@ -191,7 +191,7 @@ tests/               workflow tests
 
 - Failure injection is per order (in the request body) rather than global
   config, so you can run a good order and a broken one side by side.
-- `make server` persists to `temporal-dev.db`, so history survives restarts.
+- `make server` persists to `temporal.db`, so history survives restarts.
   Delete the file to start clean. The docker-compose version is in-memory,
   and I have not run it yet (I tested with the temporal CLI).
 - Ideas for next steps: replace `add_tip` with a workflow **Update** (a

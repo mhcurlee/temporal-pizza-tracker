@@ -6,8 +6,8 @@ PY := .venv/bin/python
 install:            ## create venv and install deps
 	python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-server:             ## Temporal dev server + UI on http://localhost:8233 (persists to temporal-dev.db)
-	temporal server start-dev --db-filename temporal-dev.db
+server:             ## Temporal dev server + UI on http://localhost:8233 (persists to temporal.db)
+	temporal server start-dev --db-filename temporal.db
 
 worker:             ## run the worker (restart it after changing workflow/activity code)
 	$(PY) -m pizza.worker
