@@ -11,9 +11,13 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from temporalio.client import Client, WorkflowHandle
+from temporalio.api.enums.v1 import PendingActivityState
 from temporalio.service import RPCError, RPCStatusCode
 
 from pizza.activities import MENU_PRICES_CENTS
@@ -91,6 +95,15 @@ async def _existing_handle(request: Request, order_id: str) -> WorkflowHandle:
 # --- Endpoints -------------------------------------------------------------------
 
 
+STATIC_DIR = Path(__file__).parent / "static"
+
+
+@app.get("/", include_in_schema=False)
+async def index() -> FileResponse:
+    """The test front-end: a single static page that calls the endpoints below."""
+    return FileResponse(STATIC_DIR / "index.html")
+
+
 @app.get("/menu")
 async def menu() -> dict[str, int]:
     return MENU_PRICES_CENTS
@@ -155,7 +168,33 @@ async def get_order(order_id: str, request: Request) -> dict:
     status: OrderStatus = await handle.query(
         PizzaOrderWorkflow.get_status, rpc_timeout=timedelta(seconds=5)
     )
-    return {"execution_status": desc.status.name if desc.status else None, "order": status}
+    return {
+        "execution_status": desc.status.name if desc.status else None,
+        "order": status,
+        "pending_activities": _pending_activities(desc),
+    }
+
+
+def _pending_activities(desc) -> list[dict]:
+    """Activities that are running or waiting to retry, straight from the
+    server's describe response. This is how you watch retries happen live:
+    `attempt` climbs, `last_failure` holds the previous attempt's error, and
+    `next_attempt_in` is the backoff the retry policy chose."""
+    pending = []
+    for pa in desc.raw_description.pending_activities:
+        next_at = pa.next_attempt_schedule_time.ToDatetime() if pa.HasField("next_attempt_schedule_time") else None
+        pending.append(
+            {
+                "activity_type": pa.activity_type.name,
+                # SCHEDULED = waiting (for a worker, or for its retry backoff), STARTED = running now
+                "state": PendingActivityState.Name(pa.state).removeprefix("PENDING_ACTIVITY_STATE_"),
+                "attempt": pa.attempt,
+                "maximum_attempts": pa.maximum_attempts,  # 0 means unlimited
+                "last_failure": pa.last_failure.message or None,
+                "next_attempt_at": next_at.isoformat() + "Z" if next_at else None,
+            }
+        )
+    return pending
 
 
 @app.post("/orders/{order_id}/cancel", status_code=202)

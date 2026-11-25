@@ -34,6 +34,12 @@ make api         # FastAPI, Swagger UI at http://localhost:8000/docs
 
 No temporal CLI? `docker compose up` instead of `make server`.
 
+**Front-end:** open http://localhost:8000 for a test page. Pick a failure preset (or set
+fail N / rate / delay / non-retry per activity), place an order, and watch it live: the
+current step, each in-flight activity's attempt count, last error and backoff countdown,
+and buttons for the cancel / tip / confirm signals. It's a single static file,
+`pizza/static/index.html`, calling the same endpoints as the curl examples below.
+
 Place an order:
 
 ```bash

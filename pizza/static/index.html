@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pizza Tracker · Temporal playground</title>
+<style>
+  :root {
+    --bg: #f7f5f2; --panel: #ffffff; --text: #1f1d1a; --muted: #6b665f; --line: #e4dfd8;
+    --accent: #c2410c; --ok: #15803d; --warn: #b45309; --bad: #b91c1c; --info: #1d4ed8;
+    --chip: #f1ede7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513; --panel: #1f1d1a; --text: #ece8e2; --muted: #9a948b; --line: #34312c;
+      --accent: #fb923c; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --info: #93c5fd;
+      --chip: #2a2723;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 16px; }
+  header h1 { margin: 0; font-size: 18px; }
+  header a { color: var(--muted); }
+  main { display: grid; grid-template-columns: 380px 1fr; gap: 20px; padding: 20px 24px; max-width: 1400px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 12px; }
+  h3 { font-size: 14px; margin: 18px 0 8px; }
+  label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 4px; }
+  input[type=text], input[type=number] {
+    width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--text); font: inherit;
+  }
+  button {
+    font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--chip); color: var(--text); cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; width: 100%; padding: 9px; margin-top: 14px; }
+  button:disabled { opacity: .45; cursor: default; }
+  .pizzas { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pizzas label { display: inline-flex; gap: 4px; align-items: center; margin: 0; padding: 4px 8px; background: var(--chip); border-radius: 6px; color: var(--text); font-size: 13px; cursor: pointer; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+  .presets button { font-size: 12px; padding: 4px 8px; }
+  table.fail { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.fail th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px 2px; }
+  table.fail td { padding: 3px 2px; }
+  table.fail input[type=number] { width: 56px; padding: 3px 4px; }
+  table.fail td.name { font-family: ui-monospace, monospace; font-size: 11.5px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  .orders { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; }
+  .orders li { display: flex; justify-content: space-between; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-family: ui-monospace, monospace; font-size: 12.5px; }
+  .orders li:hover { background: var(--chip); }
+  .orders li.sel { background: var(--chip); outline: 1px solid var(--accent); }
+  .badge { font: 600 11px system-ui; padding: 2px 7px; border-radius: 99px; background: var(--chip); }
+  .RUNNING { color: var(--info); } .COMPLETED { color: var(--ok); } .FAILED, .TIMED_OUT, .TERMINATED { color: var(--bad); } .CANCELED { color: var(--warn); }
+  .pipeline { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 6px; }
+  .step { flex: 1; min-width: 90px; text-align: center; padding: 8px 4px; border-radius: 6px; background: var(--chip); color: var(--muted); font-size: 12px; border: 1px solid transparent; }
+  .step.done { color: var(--ok); }
+  .step.now { color: var(--text); border-color: var(--accent); font-weight: 600; }
+  .step.bad { color: var(--bad); border-color: var(--bad); font-weight: 600; }
+  .bigstate { font-size: 22px; font-weight: 700; margin: 2px 0 10px; }
+  .meta { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  .meta b { color: var(--text); font-weight: 600; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+  .actions input { width: 80px; }
+  .act { border: 1px solid var(--line); border-left: 3px solid var(--info); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
+  .act.retrying { border-left-color: var(--warn); }
+  .act .top { display: flex; justify-content: space-between; font-weight: 600; }
+  .act .err { color: var(--bad); font-family: ui-monospace, monospace; font-size: 12px; margin-top: 4px; word-break: break-word; }
+  .act .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .timeline { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+  .timeline li { display: grid; grid-template-columns: 90px 170px 1fr; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .timeline .t { color: var(--muted); font-family: ui-monospace, monospace; font-size: 12px; }
+  .timeline .s { font-weight: 600; }
+  .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  .error { color: var(--bad); font-size: 13px; margin-top: 8px; }
+  a.ui { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🍕 Pizza Tracker</h1>
+  <span style="color:var(--muted)">A Temporal playground</span>
+  <a href="http://localhost:8233" target="_blank">Temporal UI ↗</a>
+  <a href="/docs" target="_blank">API docs ↗</a>
+</header>
+
+<main>
+  <!-- Left: place an order -->
+  <section class="panel">
+    <h2>New order</h2>
+    <label>Customer</label>
+    <input type="text" id="customer" value="Marvin">
+    <label>Address</label>
+    <input type="text" id="address" value="42 Durable Execution Way">
+    <label>Pizzas (each one adds 2s of baking)</label>
+    <div class="pizzas" id="pizzas"></div>
+    <label>Auto-confirm delivery after (seconds)</label>
+    <input type="number" id="confirmTimeout" value="20" min="1">
+
+    <h3>Failure injection</h3>
+    <div class="presets" id="presets"></div>
+    <table class="fail" style="margin-top:10px">
+      <thead><tr><th>activity</th><th title="Fail the first N attempts">fail N</th><th title="Chance each attempt fails, 0 to 1">rate</th><th title="Seconds to sleep first (timeouts)">delay</th><th title="Failures are non-retryable">non-retry</th></tr></thead>
+      <tbody id="failRows"></tbody>
+    </table>
+    <p class="hint">Timeouts per attempt: validate 5s, charge 5s, bake 60s (heartbeat 5s), quality 5s, deliver 10s (60s total). Default retry policy: 5 attempts, backoff 1s, 2s, 4s, 8s.</p>
+
+    <button class="primary" id="placeBtn">Place order</button>
+    <div class="error" id="placeErr"></div>
+  </section>
+
+  <!-- Right: orders + detail -->
+  <section style="display:flex; flex-direction:column; gap:20px; min-width:0">
+    <div class="panel">
+      <h2>Orders</h2>
+      <ul class="orders" id="orders"><li class="empty">No orders yet</li></ul>
+    </div>
+
+    <div class="panel" id="detail">
+      <div class="empty">Place or select an order to watch it live.</div>
+    </div>
+  </section>
+</main>
+
+<script>
+// Everything here is plain fetch() calls against the FastAPI endpoints.
+// The page polls GET /orders/{id} once a second. That endpoint runs a Temporal
+// *query* (our order state) and a *describe* (retry info for pending activities).
+
+const ACTIVITIES = ["validate_order", "charge_payment", "bake_pizza", "quality_check", "deliver_pizza", "refund_payment"];
+const PIPELINE = [
+  ["VALIDATING", "Validate"], ["CHARGING", "Charge"], ["BAKING", "Bake"],
+  ["QUALITY_CHECK", "QC"], ["OUT_FOR_DELIVERY", "Deliver"], ["AWAITING_CONFIRMATION", "Confirm"],
+];
+// The README recipes, one click each.
+const PRESETS = {
+  "None": {},
+  "Retry & recover": { charge_payment: { fail_times: 2 } },
+  "Retries exhausted": { bake_pizza: { fail_times: 10 } },
+  "Non-retryable": { deliver_pizza: { fail_times: 1, non_retryable: true } },
+  "Start-to-close timeout": { quality_check: { delay_seconds: 7 } },
+  "Schedule-to-close timeout": { deliver_pizza: { delay_seconds: 8, failure_rate: 0.5 } },
+  "Flaky refund": { deliver_pizza: { fail_times: 1, non_retryable: true }, refund_payment: { fail_times: 3 } },
+  "Random chaos": Object.fromEntries(ACTIVITIES.slice(0, 5).map(a => [a, { failure_rate: 0.3 }])),
+};
+
+const $ = id => document.getElementById(id);
+let selected = null;
+let lastDetail = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
+  if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`);
+  return res.json();
+}
+
+// ---- order form ----
+async function initForm() {
+  const menu = await api("/menu");
+  $("pizzas").innerHTML = Object.entries(menu).map(([name, cents], i) =>
+    `<label><input type="checkbox" value="${name}" ${i === 0 ? "checked" : ""}> ${name} <span style="color:var(--muted)">$${(cents / 100).toFixed(0)}</span></label>`
+  ).join("") + `<label title="Not on the menu: validate_order rejects it as non-retryable"><input type="checkbox" value="anchovy"> anchovy <span style="color:var(--bad)">✗</span></label>`;
+
+  $("failRows").innerHTML = ACTIVITIES.map(a => `
+    <tr data-act="${a}">
+      <td class="name">${a}</td>
+      <td><input type="number" min="0" step="1" data-f="fail_times" value="0"></td>
+      <td><input type="number" min="0" max="1" step="0.1" data-f="failure_rate" value="0"></td>
+      <td><input type="number" min="0" step="1" data-f="delay_seconds" value="0"></td>
+      <td style="text-align:center"><input type="checkbox" data-f="non_retryable"></td>
+    </tr>`).join("");
+
+  $("presets").innerHTML = Object.keys(PRESETS).map(p => `<button data-preset="${p}">${p}</button>`).join("");
+  $("presets").onclick = e => { if (e.target.dataset.preset) applyPreset(PRESETS[e.target.dataset.preset]); };
+  $("placeBtn").onclick = placeOrder;
+}
+
+function applyPreset(preset) {
+  for (const row of $("failRows").querySelectorAll("tr")) {
+    const spec = preset[row.dataset.act] || {};
+    for (const input of row.querySelectorAll("input")) {
+      const v = spec[input.dataset.f];
+      if (input.type === "checkbox") input.checked = !!v; else input.value = v ?? 0;
+    }
+  }
+}
+
+function readFailures() {
+  const failures = {};
+  for (const row of $("failRows").querySelectorAll("tr")) {
+    const spec = {};
+    for (const input of row.querySelectorAll("input")) {
+      spec[input.dataset.f] = input.type === "checkbox" ? input.checked : Number(input.value) || 0;
+    }
+    if (spec.fail_times || spec.failure_rate || spec.delay_seconds || spec.non_retryable) failures[row.dataset.act] = spec;
+  }
+  return failures;
+}
+
+async function placeOrder() {
+  $("placeErr").textContent = "";
+  const body = {
+    customer_name: $("customer").value,
+    address: $("address").value,
+    pizzas: [...$("pizzas").querySelectorAll("input:checked")].map(i => i.value),
+    confirm_timeout_seconds: Number($("confirmTimeout").value) || 20,
+    failures: readFailures(),
+  };
+  try {
+    const created = await api("/orders", { method: "POST", body: JSON.stringify(body) });
+    select(created.order_id);
+    refreshList();
+  } catch (e) { $("placeErr").textContent = e.message; }
+}
+
+// ---- order list ----
+async function refreshList() {
+  try {
+    const orders = await api("/orders");
+    $("orders").innerHTML = orders.length ? orders.map(o => `
+      <li data-id="${o.order_id}" class="${o.order_id === selected ? "sel" : ""}">
+        <span>${o.order_id} <span style="color:var(--muted)">${new Date(o.started).toLocaleTimeString()}</span></span>
+        <span class="badge ${o.execution_status}">${o.execution_status}</span>
+      </li>`).join("") : `<li class="empty">No orders yet</li>`;
+  } catch (e) { /* server not up yet; try again next tick */ }
+}
+$("orders").onclick = e => { const li = e.target.closest("li[data-id]"); if (li) select(li.dataset.id); };
+
+function select(id) { selected = id; lastDetail = null; refreshDetail(); refreshList(); }
+
+// ---- detail ----
+async function refreshDetail() {
+  if (!selected) return;
+  const id = selected;
+  try {
+    lastDetail = await api(`/orders/${id}`);
+    lastDetail.fetchedAt = Date.now();
+  } catch (e) {
+    // Queries need a running worker. Surface that instead of failing silently.
+    $("detail").innerHTML = `<h2>${id}</h2><div class="error">Could not load order: ${esc(e.message)}<br>Is the worker running? Queries are answered by a worker.</div>`;
+    return;
+  }
+  if (id === selected) renderDetail(lastDetail);
+}
+
+function renderDetail(d) {
+  const o = d.order, exec = d.execution_status;
+  const running = exec === "RUNNING";
+  const reached = new Set(o.events.map(e => e.state));
+  const failed = o.state === "FAILED";
+
+  const pipeline = PIPELINE.map(([state, label]) => {
+    let cls = reached.has(state) ? "done" : "";
+    if (o.state === state) cls = "now";
+    // On failure, mark the last forward step we reached as the broken one.
+    if (failed && state === lastForwardStep(o.events)) cls = "bad";
+    return `<div class="step ${cls}">${label}</div>`;
+  }).join("");
+
+  const pending = d.pending_activities.map(pa => {
+    const retrying = pa.attempt > 1 || pa.last_failure;
+    const max = pa.maximum_attempts ? pa.maximum_attempts : "∞";
+    let wait = "";
+    if (pa.next_attempt_at && pa.state === "SCHEDULED") {
+      const secs = Math.max(0, (new Date(pa.next_attempt_at) - Date.now()) / 1000);
+      wait = `next attempt in ${secs.toFixed(1)}s (backoff)`;
+    } else if (pa.state === "STARTED") wait = "running on a worker now";
+    else wait = "waiting for a worker to pick it up";
+    return `<div class="act ${retrying ? "retrying" : ""}">
+      <div class="top"><span>${pa.activity_type}</span><span>attempt ${pa.attempt} / ${max}</span></div>
+      <div class="sub">${wait}</div>
+      ${pa.last_failure ? `<div class="err">last failure: ${esc(pa.last_failure)}</div>` : ""}
+    </div>`;
+  }).join("") || `<div class="hint">No activity in flight${running ? " (workflow is waiting on a timer or signal)" : ""}.</div>`;
+
+  const t0 = o.events.length ? new Date(o.events[0].at) : null;
+  const timeline = o.events.map(e => `
+    <li><span class="t">+${((new Date(e.at) - t0) / 1000).toFixed(1)}s</span><span class="s">${e.state}</span><span>${esc(e.note)}</span></li>`).join("");
+
+  const tipValue = $("tipCents")?.value ?? 300; // keep what you typed across re-renders
+  const canCancel = running &&!["OUT_FOR_DELIVERY", "AWAITING_CONFIRMATION"].includes(o.state);
+  $("detail").innerHTML = `
+    <h2>${o.order_id} · <span class="${exec}">${exec}</span> · <a class="ui" href="http://localhost:8233/namespaces/default/workflows/${o.order_id}" target="_blank">open in Temporal UI ↗</a></h2>
+    <div class="bigstate">${o.state.replaceAll("_", " ")}</div>
+    <div class="pipeline">${pipeline}</div>
+    <div class="meta">
+      <span>payment <b>${o.payment_id ?? "none"}</b></span>
+      <span>driver <b>${o.driver ?? "none"}</b></span>
+      <span>tip <b>$${(o.tip_cents / 100).toFixed(2)}</b></span>
+    </div>
+    <div class="actions">
+      <button id="cancelBtn" ${canCancel ? "" : "disabled"} title="Signal: cancel_order">Cancel order</button>
+      <input type="number" id="tipCents" value="${esc(tipValue)}" min="1" ${running ? "" : "disabled"}>
+      <button id="tipBtn" ${running ? "" : "disabled"} title="Signal: add_tip(cents)">Add tip (cents)</button>
+      <button id="confirmBtn" ${o.state === "AWAITING_CONFIRMATION" ? "" : "disabled"} title="Signal: confirm_delivery">Confirm delivery</button>
+    </div>
+    <h3>Activities in flight</h3>
+    ${pending}
+    <h3>Timeline</h3>
+    <ul class="timeline">${timeline}</ul>`;
+
+  $("cancelBtn").onclick = () => signal("cancel");
+  $("confirmBtn").onclick = () => signal("confirm");
+  $("tipBtn").onclick = () => signal("tip", { cents: Number($("tipCents").value) });
+}
+
+function lastForwardStep(events) {
+  const forward = PIPELINE.map(p => p[0]);
+  return [...events].reverse().find(e => forward.includes(e.state))?.state;
+}
+
+async function signal(kind, body) {
+  try {
+    await api(`/orders/${selected}/${kind}`, { method: "POST", body: body ? JSON.stringify(body) : undefined });
+    setTimeout(refreshDetail, 300);
+  } catch (e) { alert(e.message); }
+}
+
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+initForm().catch(e => $("placeErr").textContent = "Could not reach the API: " + e.message);
+refreshList();
+setInterval(refreshDetail, 1000);
+setInterval(refreshList, 3000);
+</script>
+</body>
+</html>
