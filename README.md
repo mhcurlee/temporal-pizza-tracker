@@ -34,11 +34,8 @@ make api         # FastAPI, Swagger UI at http://localhost:8000/docs
 
 No temporal CLI? `docker compose up` instead of `make server`.
 
-**Front-end:** open http://localhost:8000 for a test page. Pick a failure preset (or set
-fail N / rate / delay / non-retry per activity), place an order, and watch it live: the
-current step, each in-flight activity's attempt count, last error and backoff countdown,
-and buttons for the cancel / tip / confirm signals. It's a single static file,
-`pizza/static/index.html`, calling the same endpoints as the curl examples below.
+Then open **http://localhost:8000** for the test front-end (see the next section),
+or use curl.
 
 Place an order:
 
@@ -51,6 +48,55 @@ Track it (or click the `temporal_ui` link it returns):
 ```bash
 curl -s localhost:8000/orders/<order_id>
 ```
+
+## Test front-end
+
+With the server, worker and API running, open http://localhost:8000. It's the
+easiest way to try everything in this README without writing curl commands.
+
+**Placing an order (left panel)**
+
+- Fill in customer, address and pizzas. Each pizza adds 2s of baking. `anchovy`
+  is deliberately not on the menu, so picking it triggers a non-retryable
+  validation error.
+- *Auto-confirm delivery after* sets the durable timer at the end of the
+  workflow. Keep it long if you want time to click **Confirm delivery** yourself.
+- **Failure injection presets** fill in the table for you. They match the
+  recipes in [Inducing failures](#inducing-failures): Retry & recover, Retries
+  exhausted, Non-retryable, Start-to-close timeout, Schedule-to-close timeout,
+  Flaky refund, plus *Random chaos* (30% failure rate on every step) and *None*.
+- Or edit the **failure table** directly, one row per activity: `fail N`,
+  `rate` (0 to 1), `delay` (seconds) and `non-retry`. Rows left at zero aren't
+  sent. The hint under the table lists each activity's timeout and the retry
+  policy, so you can pick a delay that will time out.
+
+**Watching it (right panel)**
+
+- **Orders** lists recent workflows with their Temporal execution status
+  (RUNNING, COMPLETED, FAILED). Click one to watch it.
+- The order view refreshes every second:
+  - a **step pipeline** (Validate → Charge → Bake → QC → Deliver → Confirm)
+    highlighting the current step, or the step that failed, in red;
+  - payment id, driver and tip;
+  - **Activities in flight**: for each running or retrying activity, its
+    attempt number against the max (∞ for the refund), the **last failure**
+    message, and a countdown to the next attempt during backoff. This is the
+    retry policy in action;
+  - a **timeline** of every state change, timed from the start of the order.
+- **Signal buttons**: *Cancel order* (only before the pizza leaves the shop),
+  *Add tip (cents)*, and *Confirm delivery* (only while awaiting confirmation).
+- **Open in Temporal UI ↗** jumps to the workflow in the Temporal Web UI, where
+  you can see the raw event history behind what the page shows.
+
+If the order view says it can't load the order, the worker is probably not
+running: queries are answered by a worker, not the server.
+
+**How it's built:** a single static file, `pizza/static/index.html` (plain HTML
+and JavaScript, no build step), served by FastAPI at `/`. It calls the same
+endpoints as the curl examples. The live retry info comes from
+`GET /orders/{id}`, which combines a workflow *query* (our own order state)
+with Temporal's *describe* call, whose `pending_activities` field holds each
+activity's attempt count, last failure and next retry time.
 
 ## Temporal concepts, mapped to this code
 
@@ -190,6 +236,7 @@ pizza/activities.py  mocked remote calls
 pizza/workflows.py   PizzaOrderWorkflow, retry policies
 pizza/worker.py      worker process
 pizza/api.py         FastAPI client
+pizza/static/        test front-end (index.html)
 tests/               workflow tests
 ```
 
